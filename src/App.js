@@ -1,50 +1,90 @@
-import React, { Component } from "react"
-import logo from "./logo.svg"
-import "./App.css"
+import Add from "./Components/Add/Add";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import Note from "./Components/Note/Note";
+import { v4 as uuidv4 } from "uuid";
 
-class LambdaDemo extends Component {
-  constructor(props) {
-    super(props)
-    this.state = { loading: false, msg: null }
-  }
+let api = `http://localhost:5000/notes`;
 
-  handleClick = api => e => {
-    e.preventDefault()
+function App() {
+  const [notes, setNotes] = useState([]);
 
-    this.setState({ loading: true })
-    fetch("/.netlify/functions/" + api)
-      .then(response => response.json())
-      .then(json => this.setState({ loading: false, msg: json.msg }))
-  }
+  useEffect(() => {
+    callApi();
+  }, []);
 
-  render() {
-    const { loading, msg } = this.state
+  const callApi = async () => {
+    let res = await axios.get(api);
+    const newData = res.data.map((v) => {
+      return {
+        ...v,
+        open: false,
+      };
+    });
+    setNotes(newData);
+  };
 
-    return (
-      <p>
-        <button onClick={this.handleClick("hello")}>{loading ? "Loading..." : "Call Lambda"}</button>
-        <button onClick={this.handleClick("async-dadjoke")}>{loading ? "Loading..." : "Call Async Lambda"}</button>
-        <br />
-        <span>{msg}</span>
-      </p>
-    )
-  }
+  const deleteNote = async (id) => {
+    let res = await axios.delete(`${api}/${id}`);
+    if (res.status == 200) {
+      const newNotes = notes.filter((note) => note.id !== id);
+      setNotes(newNotes);
+    }
+  };
+
+  const editNote = (note) => {
+    const newNotes = notes.map((n) => {
+      if (n.id === note.id) {
+        n.open = !n.open;
+        return n;
+      }
+      n.open = false;
+      return n;
+    });
+    setNotes(newNotes);
+  };
+
+  const submitNote = async (note) => {
+    delete note.open;
+    let res = await axios.put(`${api}/${note.id}`, note);
+    if (res.status === 200) {
+      let newNotes = notes.map((n) => {
+        if (n.id === note.id) {
+          n.content = note.content;
+          n.open = false;
+
+          return n;
+        }
+        return n;
+      });
+      setNotes(newNotes);
+    }
+  };
+
+  const addNote = async () => {
+    const newNote = {
+      id: uuidv4(),
+      content: "",
+      title: "",
+    };
+    let res = await axios.post(`${api}`, newNote);
+    if (res.status === 201) {
+      let newNotes = [...notes, newNote];
+      setNotes(newNotes);
+    }
+  };
+
+  return (
+    <>
+      <Add addNote={addNote} />
+      <Note
+        notes={notes}
+        deleteNote={deleteNote}
+        editNote={editNote}
+        submitNote={submitNote}
+      />
+    </>
+  );
 }
 
-class App extends Component {
-  render() {
-    return (
-      <div className="App">
-        <header className="App-header">
-          <img src={logo} className="App-logo" alt="logo" />
-          <p>
-            Edit <code>src/App.js</code> and save to reload.
-          </p>
-          <LambdaDemo />
-        </header>
-      </div>
-    )
-  }
-}
-
-export default App
+export default App;
